@@ -38,6 +38,58 @@ const Index = () => {
     }, 500);
   };
 
+  const handleDownload = () => {
+    // Создаем содержимое брендбука
+    const brandBookContent = `
+БРЕНДБУК: ${brandData.companyName.toUpperCase()}
+================================
+
+ОСНОВНАЯ ИНФОРМАЦИЯ
+- Название компании: ${brandData.companyName}
+- Шрифт: ${brandData.font || 'Не указан'}
+- Цветовая палитра: ${brandData.colors || 'Не указана'}
+- Комментарии: ${brandData.comments || 'Не указаны'}
+
+ЦВЕТОВАЯ СХЕМА
+- Основной цвет: #00D4FF (Кибер-синий)
+- Вторичный цвет: #E94560 (Акцент красный)
+- Темный цвет: #1A1A2E (Темно-синий)
+- Глубокий цвет: #16213E (Глубокий синий)
+
+ТИПОГРАФИКА
+- Заголовки: Orbitron (футуристичный)
+- Основной текст: Inter (читаемый)
+- Размеры: H1 (48px), H2 (32px), H3 (24px), Body (16px)
+
+ЛОГОТИП
+- Загруженный файл: ${logoFile?.name}
+- Рекомендуемые размеры: 200x200px (минимум)
+- Форматы: PNG, SVG для веб, EPS для печати
+
+ПРИМЕНЕНИЕ
+- Визитные карточки
+- Фирменные бланки
+- Веб-сайт
+- Социальные сети
+- Рекламные материалы
+
+КОНТАКТЫ
+Сгенерировано: ${new Date().toLocaleDateString('ru-RU')}
+Нейросеть: AI Brand Generator
+    `;
+
+    // Создаем и скачиваем файл
+    const blob = new Blob([brandBookContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `brandbook-${brandData.companyName.replace(/\s+/g, '-').toLowerCase()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -235,7 +287,7 @@ const Index = () => {
                         <p className="text-sm">Гайдлайны</p>
                       </div>
                     </div>
-                    <Button className="w-full mt-6">
+                    <Button onClick={handleDownload} className="w-full mt-6">
                       <Icon name="Download" size={16} className="mr-2" />
                       Скачать брендбук
                     </Button>
