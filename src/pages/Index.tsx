@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,11 +8,15 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import Icon from '@/components/ui/icon';
 import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const Index = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string>('');
+  const [generatedColors, setGeneratedColors] = useState<string[]>([]);
+  const brandBookRef = useRef<HTMLDivElement>(null);
   const [brandData, setBrandData] = useState({
     companyName: '',
     font: '',
@@ -20,13 +24,52 @@ const Index = () => {
     comments: ''
   });
 
+  const generateColorPalette = (baseColors: string) => {
+    // Генерируем умную цветовую палитру на основе введенных цветов
+    const colorMap: { [key: string]: string[] } = {
+      'синий': ['#0066CC', '#004499', '#3399FF', '#66B2FF'],
+      'красный': ['#CC0000', '#990000', '#FF3333', '#FF6666'], 
+      'зеленый': ['#00AA00', '#007700', '#33CC33', '#66FF66'],
+      'фиолетовый': ['#6600CC', '#4400AA', '#9933FF', '#BB66FF'],
+      'оранжевый': ['#FF6600', '#CC5500', '#FF8833', '#FFAA66'],
+      'желтый': ['#FFCC00', '#CC9900', '#FFDD33', '#FFEE66'],
+    };
+    
+    const lowerColors = baseColors.toLowerCase();
+    for (const [colorName, palette] of Object.entries(colorMap)) {
+      if (lowerColors.includes(colorName)) {
+        return palette;
+      }
+    }
+    
+    // Дефолтная палитра если не найдено совпадений
+    return ['#00D4FF', '#E94560', '#1A1A2E', '#16213E'];
+  };
+
   const handleGenerate = async () => {
     if (!logoFile || !brandData.companyName) return;
     
     setIsGenerating(true);
     setGenerationProgress(0);
     
-    // Симуляция процесса генерации
+    // Создаем URL для логотипа
+    const logoURL = URL.createObjectURL(logoFile);
+    setLogoUrl(logoURL);
+    
+    // Генерируем цветовую палитру
+    const colors = generateColorPalette(brandData.colors);
+    setGeneratedColors(colors);
+    
+    // Симуляция процесса генерации с этапами
+    const stages = [
+      'Анализ логотипа...',
+      'Извлечение цветов...',
+      'Создание палитры...',
+      'Генерация макетов...',
+      'Финальная обработка...'
+    ];
+    
+    let currentStage = 0;
     const interval = setInterval(() => {
       setGenerationProgress(prev => {
         if (prev >= 100) {
@@ -34,155 +77,59 @@ const Index = () => {
           setIsGenerating(false);
           return 100;
         }
-        return prev + 10;
+        
+        // Обновляем прогресс и переходим к следующему этапу
+        if (prev % 20 === 0 && currentStage < stages.length - 1) {
+          currentStage++;
+        }
+        
+        return prev + 20;
       });
-    }, 500);
+    }, 1000);
   };
 
-  const handleDownload = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.width;
+  const handleDownload = async () => {
+    if (!brandBookRef.current) return;
     
-    // Настройка шрифтов и цветов
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(24);
-    doc.setTextColor(0, 212, 255); // Кибер-синий
-    
-    // Заголовок
-    const title = `БРЕНДБУК: ${brandData.companyName.toUpperCase()}`;
-    const titleWidth = doc.getTextWidth(title);
-    doc.text(title, (pageWidth - titleWidth) / 2, 30);
-    
-    // Линия под заголовком
-    doc.setDrawColor(0, 212, 255);
-    doc.setLineWidth(2);
-    doc.line(20, 40, pageWidth - 20, 40);
-    
-    let yPosition = 60;
-    
-    // Основная информация
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(233, 69, 96); // Красный акцент
-    doc.text("ОСНОВНАЯ ИНФОРМАЦИЯ", 20, yPosition);
-    yPosition += 15;
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Название компании: ${brandData.companyName}`, 25, yPosition);
-    yPosition += 8;
-    doc.text(`Шрифт: ${brandData.font || 'Не указан'}`, 25, yPosition);
-    yPosition += 8;
-    doc.text(`Цветовая палитра: ${brandData.colors || 'Не указана'}`, 25, yPosition);
-    yPosition += 8;
-    if (brandData.comments) {
-      const splitComments = doc.splitTextToSize(`Комментарии: ${brandData.comments}`, pageWidth - 45);
-      doc.text(splitComments, 25, yPosition);
-      yPosition += splitComments.length * 6;
+    try {
+      // Захватываем визуальный брендбук как изображение
+      const canvas = await html2canvas(brandBookRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff'
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      // Добавляем изображение на первую страницу
+      doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      // Добавляем дополнительные страницы если нужно
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        doc.addPage();
+        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      const filename = `brandbook-${brandData.companyName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+      doc.save(filename);
+    } catch (error) {
+      console.error('Ошибка при создании PDF:', error);
     }
-    yPosition += 10;
-    
-    // Цветовая схема
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(233, 69, 96);
-    doc.text("ЦВЕТОВАЯ СХЕМА", 20, yPosition);
-    yPosition += 15;
-    
-    // Цветные блоки
-    const colors = [
-      { name: "Основной цвет", hex: "#00D4FF", rgb: [0, 212, 255] },
-      { name: "Акцент", hex: "#E94560", rgb: [233, 69, 96] },
-      { name: "Темный", hex: "#1A1A2E", rgb: [26, 26, 46] },
-      { name: "Глубокий", hex: "#16213E", rgb: [22, 33, 62] }
-    ];
-    
-    colors.forEach((color, index) => {
-      const xPos = 25 + (index % 2) * 90;
-      const yPos = yPosition + Math.floor(index / 2) * 25;
-      
-      // Цветной квадрат
-      doc.setFillColor(color.rgb[0], color.rgb[1], color.rgb[2]);
-      doc.rect(xPos, yPos, 15, 15, 'F');
-      
-      // Название и HEX
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
-      doc.text(color.name, xPos + 20, yPos + 8);
-      doc.text(color.hex, xPos + 20, yPos + 14);
-    });
-    yPosition += 60;
-    
-    // Типографика
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(233, 69, 96);
-    doc.text("ТИПОГРАФИКА", 20, yPosition);
-    yPosition += 15;
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text("Заголовки: Orbitron (футуристичный)", 25, yPosition);
-    yPosition += 8;
-    doc.text("Основной текст: Inter (читаемый)", 25, yPosition);
-    yPosition += 8;
-    doc.text("Размеры: H1 (48px), H2 (32px), H3 (24px), Body (16px)", 25, yPosition);
-    yPosition += 20;
-    
-    // Логотип
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(233, 69, 96);
-    doc.text("ЛОГОТИП", 20, yPosition);
-    yPosition += 15;
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Загруженный файл: ${logoFile?.name || 'Не загружен'}`, 25, yPosition);
-    yPosition += 8;
-    doc.text("Рекомендуемые размеры: 200x200px (минимум)", 25, yPosition);
-    yPosition += 8;
-    doc.text("Форматы: PNG, SVG для веб, EPS для печати", 25, yPosition);
-    yPosition += 20;
-    
-    // Применение
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(233, 69, 96);
-    doc.text("ПРИМЕНЕНИЕ", 20, yPosition);
-    yPosition += 15;
-    
-    const applications = [
-      "• Визитные карточки",
-      "• Фирменные бланки", 
-      "• Веб-сайт",
-      "• Социальные сети",
-      "• Рекламные материалы"
-    ];
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
-    applications.forEach(app => {
-      doc.text(app, 25, yPosition);
-      yPosition += 8;
-    });
-    
-    // Footer
-    yPosition = doc.internal.pageSize.height - 30;
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(10);
-    doc.setTextColor(128, 128, 128);
-    doc.text(`Сгенерировано: ${new Date().toLocaleDateString('ru-RU')}`, 20, yPosition);
-    doc.text("AI Brand Generator", pageWidth - 60, yPosition);
-    
-    // Скачивание
-    const filename = `brandbook-${brandData.companyName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
-    doc.save(filename);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -361,32 +308,101 @@ const Index = () => {
             </CardHeader>
             <CardContent>
               {generationProgress === 100 ? (
-                <div className="space-y-6 animate-fade-in">
-                  <div className="bg-gradient-to-br from-primary/10 to-accent/10 rounded-lg p-6">
-                    <h3 className="font-orbitron text-xl mb-4">Брендбук готов!</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-primary/20 rounded p-3 text-center">
-                        <Icon name="Palette" size={24} className="mx-auto mb-2" />
-                        <p className="text-sm">Цветовая схема</p>
-                      </div>
-                      <div className="bg-accent/20 rounded p-3 text-center">
-                        <Icon name="Type" size={24} className="mx-auto mb-2" />
-                        <p className="text-sm">Типографика</p>
-                      </div>
-                      <div className="bg-primary/20 rounded p-3 text-center">
-                        <Icon name="Layout" size={24} className="mx-auto mb-2" />
-                        <p className="text-sm">Макеты</p>
-                      </div>
-                      <div className="bg-accent/20 rounded p-3 text-center">
-                        <Icon name="FileText" size={24} className="mx-auto mb-2" />
-                        <p className="text-sm">Гайдлайны</p>
+                <div ref={brandBookRef} className="space-y-6 animate-fade-in bg-white p-6 rounded-lg">
+                  {/* Визуальный брендбук */}
+                  <div className="text-center mb-8">
+                    <h1 className="font-orbitron text-3xl font-bold text-gray-900 mb-2">
+                      БРЕНДБУК
+                    </h1>
+                    <h2 className="text-2xl text-gray-700">{brandData.companyName}</h2>
+                    <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-500 mx-auto mt-4"></div>
+                  </div>
+
+                  {/* Логотип */}
+                  {logoUrl && (
+                    <div className="text-center mb-8">
+                      <h3 className="font-orbitron text-xl font-bold text-gray-800 mb-4">ЛОГОТИП</h3>
+                      <div className="flex justify-center space-x-8">
+                        <div className="bg-white p-4 border-2 border-gray-200 rounded-lg">
+                          <img src={logoUrl} alt="Logo" className="h-16 w-auto" />
+                        </div>
+                        <div className="bg-gray-900 p-4 border-2 border-gray-200 rounded-lg">
+                          <img src={logoUrl} alt="Logo" className="h-16 w-auto" />
+                        </div>
                       </div>
                     </div>
-                    <Button onClick={handleDownload} className="w-full mt-6">
-                      <Icon name="Download" size={16} className="mr-2" />
-                      Скачать брендбук
-                    </Button>
+                  )}
+
+                  {/* Цветовая палитра */}
+                  <div className="mb-8">
+                    <h3 className="font-orbitron text-xl font-bold text-gray-800 mb-4">ЦВЕТОВАЯ ПАЛИТРА</h3>
+                    <div className="grid grid-cols-4 gap-4">
+                      {generatedColors.map((color, index) => (
+                        <div key={index} className="text-center">
+                          <div 
+                            className="w-full h-20 rounded-lg shadow-md mb-2"
+                            style={{ backgroundColor: color }}
+                          ></div>
+                          <p className="text-sm font-mono text-gray-700">{color}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* Типографика */}
+                  <div className="mb-8">
+                    <h3 className="font-orbitron text-xl font-bold text-gray-800 mb-4">ТИПОГРАФИКА</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Заголовки - {brandData.font || 'Orbitron'}</p>
+                        <h1 className="text-4xl font-bold" style={{fontFamily: brandData.font || 'Orbitron'}}>
+                          {brandData.companyName}
+                        </h1>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">Основной текст - Inter</p>
+                        <p className="text-lg font-inter">
+                          Профессиональный подход к брендингу и качественный дизайн.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Примеры применения */}
+                  <div className="mb-8">
+                    <h3 className="font-orbitron text-xl font-bold text-gray-800 mb-4">ПРИМЕРЫ ПРИМЕНЕНИЯ</h3>
+                    <div className="grid grid-cols-2 gap-6">
+                      {/* Визитка */}
+                      <div className="bg-gradient-to-br p-6 rounded-lg text-white shadow-lg" 
+                           style={{background: `linear-gradient(135deg, ${generatedColors[0]}, ${generatedColors[1]})`}}>
+                        <div className="flex items-center justify-between">
+                          {logoUrl && <img src={logoUrl} alt="Logo" className="h-8 w-auto" />}
+                          <div className="text-right">
+                            <p className="font-bold">{brandData.companyName}</p>
+                            <p className="text-sm opacity-80">Визитная карточка</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Конверт */}
+                      <div className="bg-white border-2 border-gray-200 p-6 rounded-lg">
+                        <div className="flex items-center justify-between mb-4">
+                          {logoUrl && <img src={logoUrl} alt="Logo" className="h-6 w-auto" />}
+                          <p className="text-sm text-gray-600">Фирменный бланк</p>
+                        </div>
+                        <div className="border-l-4 pl-4" style={{borderColor: generatedColors[0]}}>
+                          <p className="font-bold text-gray-800">{brandData.companyName}</p>
+                          <p className="text-sm text-gray-600">Корпоративная документация</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button onClick={handleDownload} className="w-full py-3 mt-8" 
+                          style={{backgroundColor: generatedColors[0]}}>
+                    <Icon name="Download" size={16} className="mr-2" />
+                    Скачать полный брендбук PDF
+                  </Button>
                 </div>
               ) : (
                 <div className="text-center py-16 text-muted-foreground">
