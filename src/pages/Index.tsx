@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import Icon from '@/components/ui/icon';
+import { jsPDF } from 'jspdf';
 
 const Index = () => {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -39,55 +40,149 @@ const Index = () => {
   };
 
   const handleDownload = () => {
-    // Создаем содержимое брендбука
-    const brandBookContent = `
-БРЕНДБУК: ${brandData.companyName.toUpperCase()}
-================================
-
-ОСНОВНАЯ ИНФОРМАЦИЯ
-- Название компании: ${brandData.companyName}
-- Шрифт: ${brandData.font || 'Не указан'}
-- Цветовая палитра: ${brandData.colors || 'Не указана'}
-- Комментарии: ${brandData.comments || 'Не указаны'}
-
-ЦВЕТОВАЯ СХЕМА
-- Основной цвет: #00D4FF (Кибер-синий)
-- Вторичный цвет: #E94560 (Акцент красный)
-- Темный цвет: #1A1A2E (Темно-синий)
-- Глубокий цвет: #16213E (Глубокий синий)
-
-ТИПОГРАФИКА
-- Заголовки: Orbitron (футуристичный)
-- Основной текст: Inter (читаемый)
-- Размеры: H1 (48px), H2 (32px), H3 (24px), Body (16px)
-
-ЛОГОТИП
-- Загруженный файл: ${logoFile?.name}
-- Рекомендуемые размеры: 200x200px (минимум)
-- Форматы: PNG, SVG для веб, EPS для печати
-
-ПРИМЕНЕНИЕ
-- Визитные карточки
-- Фирменные бланки
-- Веб-сайт
-- Социальные сети
-- Рекламные материалы
-
-КОНТАКТЫ
-Сгенерировано: ${new Date().toLocaleDateString('ru-RU')}
-Нейросеть: AI Brand Generator
-    `;
-
-    // Создаем и скачиваем файл
-    const blob = new Blob([brandBookContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `brandbook-${brandData.companyName.replace(/\s+/g, '-').toLowerCase()}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    
+    // Настройка шрифтов и цветов
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(24);
+    doc.setTextColor(0, 212, 255); // Кибер-синий
+    
+    // Заголовок
+    const title = `БРЕНДБУК: ${brandData.companyName.toUpperCase()}`;
+    const titleWidth = doc.getTextWidth(title);
+    doc.text(title, (pageWidth - titleWidth) / 2, 30);
+    
+    // Линия под заголовком
+    doc.setDrawColor(0, 212, 255);
+    doc.setLineWidth(2);
+    doc.line(20, 40, pageWidth - 20, 40);
+    
+    let yPosition = 60;
+    
+    // Основная информация
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(233, 69, 96); // Красный акцент
+    doc.text("ОСНОВНАЯ ИНФОРМАЦИЯ", 20, yPosition);
+    yPosition += 15;
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Название компании: ${brandData.companyName}`, 25, yPosition);
+    yPosition += 8;
+    doc.text(`Шрифт: ${brandData.font || 'Не указан'}`, 25, yPosition);
+    yPosition += 8;
+    doc.text(`Цветовая палитра: ${brandData.colors || 'Не указана'}`, 25, yPosition);
+    yPosition += 8;
+    if (brandData.comments) {
+      const splitComments = doc.splitTextToSize(`Комментарии: ${brandData.comments}`, pageWidth - 45);
+      doc.text(splitComments, 25, yPosition);
+      yPosition += splitComments.length * 6;
+    }
+    yPosition += 10;
+    
+    // Цветовая схема
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(233, 69, 96);
+    doc.text("ЦВЕТОВАЯ СХЕМА", 20, yPosition);
+    yPosition += 15;
+    
+    // Цветные блоки
+    const colors = [
+      { name: "Основной цвет", hex: "#00D4FF", rgb: [0, 212, 255] },
+      { name: "Акцент", hex: "#E94560", rgb: [233, 69, 96] },
+      { name: "Темный", hex: "#1A1A2E", rgb: [26, 26, 46] },
+      { name: "Глубокий", hex: "#16213E", rgb: [22, 33, 62] }
+    ];
+    
+    colors.forEach((color, index) => {
+      const xPos = 25 + (index % 2) * 90;
+      const yPos = yPosition + Math.floor(index / 2) * 25;
+      
+      // Цветной квадрат
+      doc.setFillColor(color.rgb[0], color.rgb[1], color.rgb[2]);
+      doc.rect(xPos, yPos, 15, 15, 'F');
+      
+      // Название и HEX
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      doc.text(color.name, xPos + 20, yPos + 8);
+      doc.text(color.hex, xPos + 20, yPos + 14);
+    });
+    yPosition += 60;
+    
+    // Типографика
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(233, 69, 96);
+    doc.text("ТИПОГРАФИКА", 20, yPosition);
+    yPosition += 15;
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Заголовки: Orbitron (футуристичный)", 25, yPosition);
+    yPosition += 8;
+    doc.text("Основной текст: Inter (читаемый)", 25, yPosition);
+    yPosition += 8;
+    doc.text("Размеры: H1 (48px), H2 (32px), H3 (24px), Body (16px)", 25, yPosition);
+    yPosition += 20;
+    
+    // Логотип
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(233, 69, 96);
+    doc.text("ЛОГОТИП", 20, yPosition);
+    yPosition += 15;
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Загруженный файл: ${logoFile?.name || 'Не загружен'}`, 25, yPosition);
+    yPosition += 8;
+    doc.text("Рекомендуемые размеры: 200x200px (минимум)", 25, yPosition);
+    yPosition += 8;
+    doc.text("Форматы: PNG, SVG для веб, EPS для печати", 25, yPosition);
+    yPosition += 20;
+    
+    // Применение
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(233, 69, 96);
+    doc.text("ПРИМЕНЕНИЕ", 20, yPosition);
+    yPosition += 15;
+    
+    const applications = [
+      "• Визитные карточки",
+      "• Фирменные бланки", 
+      "• Веб-сайт",
+      "• Социальные сети",
+      "• Рекламные материалы"
+    ];
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    applications.forEach(app => {
+      doc.text(app, 25, yPosition);
+      yPosition += 8;
+    });
+    
+    // Footer
+    yPosition = doc.internal.pageSize.height - 30;
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(10);
+    doc.setTextColor(128, 128, 128);
+    doc.text(`Сгенерировано: ${new Date().toLocaleDateString('ru-RU')}`, 20, yPosition);
+    doc.text("AI Brand Generator", pageWidth - 60, yPosition);
+    
+    // Скачивание
+    const filename = `brandbook-${brandData.companyName.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+    doc.save(filename);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
